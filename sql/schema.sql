@@ -81,7 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_media_listing ON media(listing_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_listing ON bookings(listing_id);
 
 
--- KejaSure short-stay / furnished-stay extension.
+-- KejaScan short-stay / furnished-stay extension.
 -- These statements are safe on existing PostgreSQL deployments.
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users

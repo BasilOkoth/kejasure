@@ -1,8 +1,8 @@
 {
-  "name": "kejasure",
+  "name": "kejascan",
   "version": "1.0.0",
   "private": true,
-  "description": "KejaSure premium verified rental marketplace for Kenya",
+  "description": "KejaScan property intelligence platform for Kenya",
   "type": "module",
   "scripts": {
     "start": "node server.js",

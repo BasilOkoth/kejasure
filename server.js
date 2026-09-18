@@ -54,6 +54,7 @@ function roleAllowed(...roles){
 function safetyCode(){ return crypto.randomBytes(3).toString("hex").toUpperCase(); }
 
 async function ensureAdmin(){
+  await q("UPDATE users SET name='KejaScan Admin' WHERE role='admin' AND name='KejaSure Admin'");
   const email = cleanEmail(process.env.ADMIN_EMAIL);
   const password = process.env.ADMIN_PASSWORD;
   if(!email || !password) return;
@@ -61,11 +62,11 @@ async function ensureAdmin(){
   if(exists.rowCount) return;
   const hash = await bcrypt.hash(password,12);
   await q(`INSERT INTO users(name,email,password_hash,role,verified_identity)
-           VALUES($1,$2,$3,'admin',true)`,["KejaSure Admin",email,hash]);
+           VALUES($1,$2,$3,'admin',true)`,["KejaScan Admin",email,hash]);
   console.log("Admin account created.");
 }
 
-app.get("/api/health",(req,res)=>res.json({ok:true,service:"KejaSure",time:new Date().toISOString()}));
+app.get("/api/health",(req,res)=>res.json({ok:true,service:"KejaScan",time:new Date().toISOString()}));
 
 app.post("/api/auth/register", async (req,res,next)=>{
   try{
@@ -140,6 +141,68 @@ app.get("/api/listings/:id",async(req,res,next)=>{
     res.json({...r.rows[0],media:media.rows});
   }catch(e){next(e)}
 });
+
+app.get("/api/listings/:id/scan",async(req,res,next)=>{
+  try{
+    const r=await q(`${listingSelect} WHERE l.id=$1`,[req.params.id]);
+    if(!r.rowCount) return res.status(404).json({error:"Listing not found"});
+    const x=r.rows[0];
+    const now=Date.now();
+    const confirmed=x.availability_confirmed_at?new Date(x.availability_confirmed_at).getTime():null;
+    const freshHours=confirmed?Math.max(0,Math.round((now-confirmed)/3600000)):null;
+    const availability = freshHours===null?40:freshHours<=24?100:freshHours<=72?92:freshHours<=168?80:55;
+    const mediaCount=Number(x.media_count||0);
+    const evidence=Math.min(100, mediaCount===0?30:mediaCount===1?62:mediaCount===2?78:90 + Math.min(10,mediaCount));
+    let cost=55;
+    if(x.listing_mode==='short_stay'){
+      if(Number(x.nightly_rate)>0) cost+=20;
+      if(x.cleaning_fee!==null) cost+=10;
+      if(Number(x.minimum_nights||0)>0) cost+=8;
+      if(x.security_deposit!==null) cost+=7;
+    } else {
+      if(Number(x.rent)>0) cost+=18;
+      if(x.deposit!==null) cost+=10;
+      if(x.service_charge!==null) cost+=9;
+      if(x.viewing_fee!==null) cost+=8;
+    }
+    cost=Math.min(100,cost);
+    let utilities=25;
+    if(x.water) utilities+=25;
+    if(x.internet) utilities+=25;
+    if(x.security) utilities+=15;
+    if(x.parking) utilities+=10;
+    utilities=Math.min(100,utilities);
+    let safety=30;
+    if(x.lister_identity_verified) safety+=30;
+    if(x.latitude!==null && x.longitude!==null) safety+=20;
+    if(x.status==='verified') safety+=20;
+    safety=Math.min(100,safety);
+    let decision=45;
+    if(x.description && x.description.length>40) decision+=15;
+    if(x.bedrooms!==null) decision+=8;
+    if(x.bathrooms!==null) decision+=8;
+    if(x.floor) decision+=7;
+    if(x.listing_mode==='short_stay' && x.maximum_guests) decision+=7;
+    decision=Math.min(100,decision);
+    const overall=Math.round(availability*.24 + evidence*.20 + cost*.16 + utilities*.14 + safety*.16 + decision*.10);
+    const flags=[];
+    if(freshHours===null) flags.push("Availability has not yet been reconfirmed.");
+    else if(freshHours>72) flags.push("Availability confirmation is more than 72 hours old.");
+    if(mediaCount<2) flags.push("Limited visual evidence uploaded.");
+    if(!x.lister_identity_verified) flags.push("Lister identity is not yet verified.");
+    if(x.latitude===null || x.longitude===null) flags.push("Exact map coordinates are not yet recorded.");
+    if(!x.water) flags.push("Water reliability details are missing.");
+    res.json({
+      brand:"KejaScan",
+      overall,
+      fresh_hours:freshHours,
+      dimensions:{availability,evidence,cost_clarity:cost,utilities,safety,decision_readiness:decision},
+      flags,
+      interpretation: overall>=90?"Excellent evidence and decision readiness":overall>=80?"Strong property intelligence":overall>=70?"Good, with a few checks remaining":"More evidence is recommended before travelling"
+    });
+  }catch(e){next(e)}
+});
+
 app.get("/api/media/:id",async(req,res,next)=>{
   try{
     const r=await q("SELECT content_type,filename,data FROM media WHERE id=$1",[req.params.id]);
@@ -298,7 +361,7 @@ app.post("/api/admin/listings/:id/score",auth,admin,async(req,res,next)=>{
     const r=await q(`UPDATE listings SET verification_score=$1,updated_at=NOW()
       WHERE id=$2 RETURNING *`,[score,req.params.id]);
     if(!r.rowCount) return res.status(404).json({error:"Listing not found"});
-    res.json({message:"KejaSure Score updated.",listing:r.rows[0]});
+    res.json({message:"KejaScan Score updated.",listing:r.rows[0]});
   }catch(e){next(e)}
 });
 
@@ -429,4 +492,4 @@ app.get("*",(req,res)=>res.sendFile(path.join(__dirname,"public","index.html")))
 
 await initDb();
 await ensureAdmin();
-app.listen(PORT,()=>console.log(`KejaSure running on ${PORT}`));
+app.listen(PORT,()=>console.log(`KejaScan running on ${PORT}`));

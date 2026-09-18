@@ -1,0 +1,30 @@
+KEJASCAN UPDATE — EXISTING GITHUB/RENDER DEPLOYMENT
+
+Upload/replace these files in the existing GitHub repository:
+- server.js
+- public/index.html
+- public/app.js
+- public/styles.css
+- README.md
+- package.json
+
+Do NOT replace render.yaml just to change the brand on the current deployment.
+The existing Render service/database names can remain "kejasure" / "kejasure-db"
+until you intentionally migrate/rename infrastructure. This preserves the current
+DATABASE_URL wiring and existing PostgreSQL data.
+
+WHAT CHANGED
+- Public brand changed to KejaScan
+- Positioning changed from a generic verified-listings marketplace to property intelligence
+- New 6-layer KejaScan property scan:
+  1. Availability freshness
+  2. Evidence completeness
+  3. Cost clarity
+  4. Utilities information
+  5. Safety signals
+  6. Decision readiness
+- Property detail view now shows an intelligence report and missing-information warnings
+- New "How scanning works" section on the homepage
+- Messaging changed to "Know the house before you go."
+- Existing long-term, short-stay, furnished-monthly, accounts, admin, viewing, media and verification features remain
+- Existing admin account display name migrates from KejaSure Admin to KejaScan Admin on restart

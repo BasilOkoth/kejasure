@@ -25,8 +25,8 @@ function render(rows){
  $$(".card").forEach(c=>c.onclick=()=>detail(c.dataset.id))
 }
 window.detail=async function detail(id){
- const x=await api("/api/listings/"+id);const first=x.media?.[0];const media=first?(first.media_type==="video"?`<video controls src="/api/media/${first.id}"></video>`:`<img src="/api/media/${first.id}" alt="">`):`<div class="noimg">No media uploaded yet</div>`;
- $("#detail").innerHTML=`<div class="detailHero"><div class="gallery">${media}</div><div><span class="kicker">Verified listing</span><div class="detailScore">${x.verification_score||"—"}</div><small>KEJASURE SCORE</small><h2>${x.title}</h2><p>${x.description||""}</p><h3>${stayPrice(x)}</h3></div></div><div class="info"><div><span>Availability</span><b>${x.units_available} unit(s) vacant</b></div><div><span>Viewing fee</span><b>${money(x.viewing_fee)}</b></div><div><span>Deposit</span><b>${money(x.deposit)}</b></div><div><span>Service charge</span><b>${money(x.service_charge)}</b></div><div><span>Water</span><b>${x.water||"Not stated"}</b></div><div><span>Internet</span><b>${x.internet||"Not stated"}</b></div><div><span>Security</span><b>${x.security||"Not stated"}</b></div><div><span>Lister</span><b>${x.lister_name} • ${x.lister_role}${x.lister_identity_verified?" ✓":""}</b></div>${x.listing_mode==="short_stay"?`
+ const [x,scan]=await Promise.all([api("/api/listings/"+id),api(`/api/listings/${id}/scan`)]);const first=x.media?.[0];const media=first?(first.media_type==="video"?`<video controls src="/api/media/${first.id}"></video>`:`<img src="/api/media/${first.id}" alt="">`):`<div class="noimg">No media uploaded yet</div>`;
+ $("#detail").innerHTML=`<div class="detailHero"><div class="gallery">${media}</div><div><span class="kicker">Verified listing</span><div class="detailScore">${x.verification_score||"—"}</div><small>VERIFICATION SCORE</small><h2>${x.title}</h2><p>${x.description||""}</p><h3>${stayPrice(x)}</h3></div></div><div class="info"><div><span>Availability</span><b>${x.units_available} unit(s) vacant</b></div><div><span>Viewing fee</span><b>${money(x.viewing_fee)}</b></div><div><span>Deposit</span><b>${money(x.deposit)}</b></div><div><span>Service charge</span><b>${money(x.service_charge)}</b></div><div><span>Water</span><b>${x.water||"Not stated"}</b></div><div><span>Internet</span><b>${x.internet||"Not stated"}</b></div><div><span>Security</span><b>${x.security||"Not stated"}</b></div><div><span>Lister</span><b>${x.lister_name} • ${x.lister_role}${x.lister_identity_verified?" ✓":""}</b></div>${x.listing_mode==="short_stay"?`
       <div><span>Weekly rate</span><b>${x.weekly_rate?money(x.weekly_rate):"Not stated"}</b></div>
       <div><span>Cleaning fee</span><b>${money(x.cleaning_fee)}</b></div>
       <div><span>Minimum stay</span><b>${x.minimum_nights||1} night(s)</b></div>
@@ -34,9 +34,13 @@ window.detail=async function detail(id){
       <div><span>Check-in</span><b>${x.check_in_time||"Not stated"}</b></div>
       <div><span>Check-out</span><b>${x.check_out_time||"Not stated"}</b></div>
       <div><span>Self check-in</span><b>${x.self_check_in?"Yes":"No"}</b></div>
-      <div><span>Amenities</span><b>${[x.kitchen&&"Kitchen",x.workspace&&"Workspace",x.pool&&"Pool",x.gym&&"Gym"].filter(Boolean).join(" • ")||"Not stated"}</b></div>`:""}</div><div class="actions"><button onclick="saveHome(${x.id})">Save</button>${x.latitude&&x.longitude?`<button onclick="showMap(${x.latitude},${x.longitude},'${x.title.replaceAll("'","")}')">Map</button>`:""}<button class="go" onclick="bookHome(${x.id})">Book verified viewing</button></div>`;open("detailModal")
+      <div><span>Amenities</span><b>${[x.kitchen&&"Kitchen",x.workspace&&"Workspace",x.pool&&"Pool",x.gym&&"Gym"].filter(Boolean).join(" • ")||"Not stated"}</b></div>`:""}</div>
+      <section class="scanReport"><div class="scanReportHead"><div><span class="kicker">KejaScan property scan</span><h3>${scan.overall}/100 • ${scan.interpretation}</h3></div><div class="scanFresh">${scan.fresh_hours===null?"Freshness unknown":scan.fresh_hours+"h since availability check"}</div></div>
+      <div class="scanBars">${Object.entries(scan.dimensions).map(([k,v])=>`<div class="scanBar"><div><span>${k.replaceAll("_"," ")}</span><b>${v}</b></div><i><em style="width:${v}%"></em></i></div>`).join("")}</div>
+      ${scan.flags.length?`<div class="scanFlags"><b>Check before you go</b>${scan.flags.map(f=>`<span>• ${f}</span>`).join("")}</div>`:`<div class="scanFlags clear"><b>No major information gaps detected.</b></div>`}</section>
+      <div class="actions"><button onclick="saveHome(${x.id})">Save</button>${x.latitude&&x.longitude?`<button onclick="showMap(${x.latitude},${x.longitude},'${x.title.replaceAll("'","")}')">Map</button>`:""}<button class="go" onclick="bookHome(${x.id})">Book verified viewing</button></div>`;open("detailModal")
 }
-window.saveHome=async id=>{if(!me){open("authModal");return}try{await api(`/api/listings/${id}/save`,{method:"POST"});alert("Saved to your KejaSure account.")}catch(e){alert(e.message)}}
+window.saveHome=async id=>{if(!me){open("authModal");return}try{await api(`/api/listings/${id}/save`,{method:"POST"});alert("Saved to your KejaScan account.")}catch(e){alert(e.message)}}
 window.bookHome=async id=>{if(!me){open("authModal");return}if(me.role!=="renter"){alert("Viewing bookings are for house-seeker accounts.");return}const when=prompt("Enter viewing date/time, e.g. 2026-09-20T14:00");if(!when)return;try{const r=await api(`/api/listings/${id}/bookings`,{method:"POST",body:JSON.stringify({scheduled_for:when})});alert(`${r.message}\nSafety code: ${r.booking.safety_code}`)}catch(e){alert(e.message)}}
 window.showMap=(lat,lng,title)=>{open("mapModal");setTimeout(()=>{if(map)map.remove();map=L.map("map").setView([lat,lng],15);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(map);L.marker([lat,lng]).addTo(map).bindPopup(title).openPopup()},100)}
 $("#searchBtn").onclick=load;$("#budget").onchange=load;$("#ptype").onchange=load;if($("#modeFilter"))$("#modeFilter").onchange=load;$("#freeView").onchange=load;$("#q").onkeydown=e=>{if(e.key==="Enter")load()};
@@ -61,7 +65,7 @@ async function dashboard(){
    const expiring=rows.filter(x=>x.status==="verified" && x.availability_expires_at && new Date(x.availability_expires_at)-Date.now() < 48*3600*1000);
    html+=`
    <div class="adminWelcome">
-     <div><span class="kicker">Platform control centre</span><h2>KejaSure Admin</h2><p>Verification, users, live inventory and viewing activity in one place.</p></div>
+     <div><span class="kicker">Platform control centre</span><h2>KejaScan Admin</h2><p>Verification, users, live inventory and viewing activity in one place.</p></div>
      <div class="adminQuick"><button onclick="adminRefresh()">↻ Refresh</button></div>
    </div>
    <div class="adminStats">
@@ -237,11 +241,11 @@ function adminUserCard(u){
   </article>`;
 }
 window.adminRefresh=()=>dashboard();
-window.adminScore=async(id,current)=>{const s=prompt("KejaSure Score (1–100):",current);if(!s)return;try{await api(`/api/admin/listings/${id}/score`,{method:"POST",body:JSON.stringify({score:Number(s)})});dashboard();load();stats()}catch(e){alert(e.message)}}
+window.adminScore=async(id,current)=>{const s=prompt("Verification score (1–100):",current);if(!s)return;try{await api(`/api/admin/listings/${id}/score`,{method:"POST",body:JSON.stringify({score:Number(s)})});dashboard();load();stats()}catch(e){alert(e.message)}}
 window.adminPause=async id=>{if(!confirm("Pause this listing? It will disappear from public search."))return;try{await api(`/api/admin/listings/${id}/pause`,{method:"POST",body:"{}"});dashboard();load();stats()}catch(e){alert(e.message)}}
 window.adminVerifyIdentity=async id=>{if(!confirm("Mark this user's identity as verified?"))return;try{await api(`/api/admin/users/${id}/verify-identity`,{method:"POST",body:"{}"});dashboard()}catch(e){alert(e.message)}}
 window.adminUnverifyIdentity=async id=>{if(!confirm("Remove this user's identity verification?"))return;try{await api(`/api/admin/users/${id}/unverify-identity`,{method:"POST",body:"{}"});dashboard()}catch(e){alert(e.message)}}
 
-window.adminVerify=async id=>{const s=prompt("KejaSure verification score (1–100):","90");if(!s)return;try{await api(`/api/admin/listings/${id}/verify`,{method:"POST",body:JSON.stringify({score:Number(s)})});dashboard();load();stats()}catch(x){alert(x.message)}}
+window.adminVerify=async id=>{const s=prompt("Verification score (1–100):","90");if(!s)return;try{await api(`/api/admin/listings/${id}/verify`,{method:"POST",body:JSON.stringify({score:Number(s)})});dashboard();load();stats()}catch(x){alert(x.message)}}
 window.adminReject=async id=>{const reason=prompt("Reason for rejection:","Verification requirements not met");if(!reason)return;try{await api(`/api/admin/listings/${id}/reject`,{method:"POST",body:JSON.stringify({reason})});dashboard()}catch(x){alert(x.message)}}
 await getMe();await stats();await load();

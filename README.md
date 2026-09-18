@@ -1,4 +1,4 @@
-# KejaSure — production-oriented MVP
+# KejaScan — production-oriented MVP
 
 **Real homes. Verified availability. No wasted trips.**
 
@@ -9,7 +9,7 @@ This package is designed for GitHub → Render deployment and includes the premi
 - secure password hashing and cookie-based JWT sessions
 - real image/video uploads stored persistently in PostgreSQL for the MVP
 - admin property verification workflow
-- KejaSure verification score
+- KejaScan verification score
 - seven-day live-availability reconfirmation
 - exact map pins with OpenStreetMap/Leaflet
 - viewing appointments with private safety codes
@@ -27,7 +27,7 @@ This package is designed for GitHub → Render deployment and includes the premi
 3. In Render choose **New → Blueprint**.
 4. Connect that repository.
 5. Render reads `render.yaml` and creates:
-   - the KejaSure Node web service
+   - the KejaScan Node web service
    - a PostgreSQL database
 6. During the first Blueprint setup, Render will ask for:
    - `ADMIN_EMAIL`
@@ -43,7 +43,7 @@ Render automatically generates `JWT_SECRET`, and `DATABASE_URL` is wired to the 
 3. Submit a property.
 4. Upload a current photo or video in that account's dashboard.
 5. Sign back in as admin.
-6. Verify the property and assign a KejaSure Score.
+6. Verify the property and assign a KejaScan Score.
 7. The property appears in public search.
 8. Create a house-seeker account to save it or request a viewing.
 
@@ -74,7 +74,7 @@ No payment or escrow flow is enabled in this package.
 
 ## Short-stay hosts
 
-KejaSure also supports short-stay and furnished-monthly inventory.
+KejaScan also supports short-stay and furnished-monthly inventory.
 
 New listing modes:
 - Long-term rental
@@ -99,3 +99,27 @@ Short-stay listings can include:
 - live availability reconfirmation
 
 A new `host` user role is available. The database migration is included in `sql/schema.sql` and runs automatically at the next Render deployment.
+
+
+## What makes KejaScan different
+
+KejaScan is positioned as a **property intelligence and decision-support platform**, not merely a verified-listings marketplace.
+
+Its six-layer property scan evaluates:
+1. Availability freshness
+2. Evidence completeness
+3. Cost clarity
+4. Utilities information
+5. Safety / identity / location signals
+6. Decision readiness
+
+Each public property has a `/api/listings/:id/scan` intelligence endpoint. The score is calculated from the evidence currently recorded for that property and highlights missing information instead of pretending the listing is complete.
+
+Core promise: **Know the house before you go.**
+
+KejaScan supports long-term rentals, short stays and furnished monthly stays while keeping its primary differentiation around decision intelligence, live availability freshness, evidence gaps and traceable viewings.
+
+
+## Existing Render deployment note
+
+The repository may still use the infrastructure names `kejasure` and `kejasure-db` in `render.yaml`. That is intentional for the existing Render deployment so the current PostgreSQL database remains connected. The public product branding is **KejaScan**. Rename the Render service/database only as a separate infrastructure migration after confirming the existing database connection.
