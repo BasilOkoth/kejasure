@@ -13,7 +13,14 @@
 <section class="hero"><div><span class="kicker">Verified rentals for Kenya</span><h1>Find a real home.<br><em>Before you leave home.</em></h1>
 <p>Live availability, transparent move-in costs, verified listers, current photos and safer viewing appointments.</p>
 <div class="search"><input id="q" placeholder="Area, estate or what you need…"><select id="budget"><option value="">Any budget</option><option value="15000">≤ KSh 15k</option><option value="20000">≤ KSh 20k</option><option value="30000">≤ KSh 30k</option><option value="50000">≤ KSh 50k</option></select><button id="searchBtn">Search</button></div>
-<div class="filters"><label><input id="freeView" type="checkbox" checked> KSh 0 viewing fee</label><select id="ptype"><option value="">Any type</option><option>Bedsitter</option><option>1 Bedroom</option><option>2 Bedroom</option><option>3 Bedroom</option></select></div>
+<div class="filters">
+    <select id="modeFilter">
+      <option value="">All stays</option>
+      <option value="long_term">Long-term rent</option>
+      <option value="short_stay">Short stay</option>
+      <option value="furnished_monthly">Furnished monthly</option>
+    </select>
+    <label><input id="freeView" type="checkbox" checked> KSh 0 viewing fee</label><select id="ptype"><option value="">Any type</option><option>Bedsitter</option><option>1 Bedroom</option><option>2 Bedroom</option><option>3 Bedroom</option></select></div>
 <div class="stats"><div><b id="s1">—</b><span>verified homes</span></div><div><b id="s2">—</b><span>live vacant units</span></div><div><b id="s3">—</b><span>average KejaSure score</span></div></div></div>
 <aside class="heroGlass"><span class="pill">VERIFIED TODAY</span><div class="bigScore">94</div><small>KEJASURE SCORE</small><h3>Trust before travel.</h3><p>Availability expires unless the lister reconfirms it.</p></aside></section>
 
@@ -27,7 +34,7 @@
 <div class="modal" id="detailModal"><div class="sheet wide"><button class="x" data-close>×</button><div id="detail"></div></div></div>
 <div class="modal" id="authModal"><div class="sheet"><button class="x" data-close>×</button><span class="kicker">Welcome to KejaSure</span><h2>Sign in or create an account</h2><div class="tabs"><button class="tab active" data-tab="login">Sign in</button><button class="tab" data-tab="register">Create account</button></div>
 <form id="loginForm"><label>Email<input name="email" type="email" required></label><label>Password<input name="password" type="password" required></label><button class="primary">Sign in</button></form>
-<form id="registerForm" hidden><label>Name<input name="name" required></label><label>Email<input name="email" type="email" required></label><label>Phone<input name="phone"></label><label>I am a<select name="role"><option value="renter">House seeker</option><option value="landlord">Landlord</option><option value="caretaker">Caretaker</option><option value="manager">Property manager</option><option value="agent">Agent</option></select></label><label>Password<input name="password" type="password" minlength="8" required></label><button class="primary">Create account</button></form><p id="authMsg" class="msg"></p></div></div>
+<form id="registerForm" hidden><label>Name<input name="name" required></label><label>Email<input name="email" type="email" required></label><label>Phone<input name="phone"></label><label>I am a<select name="role"><option value="renter">House seeker</option><option value="landlord">Landlord</option><option value="caretaker">Caretaker</option><option value="manager">Property manager</option><option value="agent">Agent</option><option value="host">Short-stay host</option></select></label><label>Password<input name="password" type="password" minlength="8" required></label><button class="primary">Create account</button></form><p id="authMsg" class="msg"></p></div></div>
 
 <div class="modal" id="dashboardModal"><div class="sheet huge"><button class="x" data-close>×</button><div id="dash"></div></div></div>
 <div class="modal" id="mapModal"><div class="sheet wide"><button class="x" data-close>×</button><h2>Exact verified location</h2><div id="map"></div></div></div>

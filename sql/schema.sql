@@ -79,3 +79,42 @@ CREATE INDEX IF NOT EXISTS idx_listings_area ON listings(area);
 CREATE INDEX IF NOT EXISTS idx_listings_rent ON listings(rent);
 CREATE INDEX IF NOT EXISTS idx_media_listing ON media(listing_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_listing ON bookings(listing_id);
+
+
+-- KejaSure short-stay / furnished-stay extension.
+-- These statements are safe on existing PostgreSQL deployments.
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users
+  ADD CONSTRAINT users_role_check
+  CHECK (role IN ('renter','landlord','caretaker','manager','agent','host','admin'));
+
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS listing_mode TEXT NOT NULL DEFAULT 'long_term';
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS nightly_rate INTEGER;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS weekly_rate INTEGER;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS monthly_rate INTEGER;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS cleaning_fee INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS security_deposit INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS minimum_nights INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS maximum_guests INTEGER;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS check_in_time TEXT;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS check_out_time TEXT;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS furnished BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS self_check_in BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS kitchen BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS workspace BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS pool BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS gym BOOLEAN NOT NULL DEFAULT FALSE;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'listings_listing_mode_check'
+  ) THEN
+    ALTER TABLE listings
+      ADD CONSTRAINT listings_listing_mode_check
+      CHECK (listing_mode IN ('long_term','short_stay','furnished_monthly'));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_listings_mode ON listings(listing_mode);

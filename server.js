@@ -71,7 +71,7 @@ app.post("/api/auth/register", async (req,res,next)=>{
   try{
     const {name,phone,password} = req.body||{};
     const email = cleanEmail(req.body?.email);
-    const role = ["renter","landlord","caretaker","manager","agent"].includes(req.body?.role) ? req.body.role : "renter";
+    const role = ["renter","landlord","caretaker","manager","agent","host"].includes(req.body?.role) ? req.body.role : "renter";
     if(!name || !email || !password || password.length < 8) return res.status(400).json({error:"Name, email and password of at least 8 characters are required"});
     const hash = await bcrypt.hash(password,12);
     const r = await q(`INSERT INTO users(name,email,phone,password_hash,role) VALUES($1,$2,$3,$4,$5) RETURNING *`,
@@ -117,7 +117,16 @@ app.get("/api/listings", async(req,res,next)=>{
     if(req.query.q) add(`(LOWER(l.title||' '||l.area||' '||l.county||' '||COALESCE(l.description,'')) LIKE ?)`,`%${String(req.query.q).toLowerCase()}%`);
     if(req.query.area) add("LOWER(l.area)=?",String(req.query.area).toLowerCase());
     if(req.query.type) add("LOWER(l.property_type)=?",String(req.query.type).toLowerCase());
-    if(Number(req.query.maxRent)>0) add("l.rent<=?",Number(req.query.maxRent));
+    if(req.query.mode) add("l.listing_mode=?",String(req.query.mode));
+    if(Number(req.query.maxRent)>0) {
+      const budget=Number(req.query.maxRent);
+      args.push(budget);
+      where.push(`(
+        (l.listing_mode='long_term' AND l.rent<=$${args.length})
+        OR (l.listing_mode='short_stay' AND COALESCE(l.nightly_rate,0)<=$${args.length})
+        OR (l.listing_mode='furnished_monthly' AND COALESCE(l.monthly_rate,l.rent)<=$${args.length})
+      )`);
+    }
     if(req.query.noViewingFee==="true") where.push("l.viewing_fee=0");
     const r=await q(`${listingSelect} WHERE ${where.join(" AND ")} ORDER BY l.verification_score DESC NULLS LAST,l.verified_at DESC`,args);
     res.json(r.rows);
@@ -141,17 +150,30 @@ app.get("/api/media/:id",async(req,res,next)=>{
   }catch(e){next(e)}
 });
 
-app.post("/api/listings",auth,roleAllowed("landlord","caretaker","manager","agent"),async(req,res,next)=>{
+app.post("/api/listings",auth,roleAllowed("landlord","caretaker","manager","agent","host"),async(req,res,next)=>{
   try{
     const b=req.body||{};
-    if(!b.title||!b.area||!b.property_type||!Number(b.rent)) return res.status(400).json({error:"Title, area, house type and rent are required"});
+    if(!b.title||!b.area||!b.property_type) return res.status(400).json({error:"Title, area and property type are required"});
+    if((b.listing_mode||"long_term")==="short_stay" && !Number(b.nightly_rate)) return res.status(400).json({error:"Nightly rate is required for short stays"});
+    if((b.listing_mode||"long_term")!=="short_stay" && !Number(b.rent||b.monthly_rate)) return res.status(400).json({error:"Monthly rent is required"});
+    const mode=["long_term","short_stay","furnished_monthly"].includes(b.listing_mode)?b.listing_mode:"long_term";
+    const effectiveRent = mode==="short_stay"
+      ? Number(b.monthly_rate||b.rent||0)
+      : Number(b.rent||b.monthly_rate||0);
     const r=await q(`INSERT INTO listings
-      (owner_id,title,area,county,property_type,bedrooms,bathrooms,rent,deposit,service_charge,viewing_fee,units_available,description,water,internet,security,parking,floor,latitude,longitude)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
+      (owner_id,title,area,county,property_type,bedrooms,bathrooms,rent,deposit,service_charge,viewing_fee,units_available,
+       description,water,internet,security,parking,floor,latitude,longitude,listing_mode,nightly_rate,weekly_rate,monthly_rate,
+       cleaning_fee,security_deposit,minimum_nights,maximum_guests,check_in_time,check_out_time,furnished,self_check_in,kitchen,workspace,pool,gym)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36)
+      RETURNING *`,
       [req.user.id,b.title,b.area,b.county||"Nairobi",b.property_type,Number(b.bedrooms||0),Number(b.bathrooms||1),
-       Number(b.rent),Number(b.deposit||0),Number(b.service_charge||0),Number(b.viewing_fee||0),Number(b.units_available||1),
+       effectiveRent,Number(b.deposit||0),Number(b.service_charge||0),Number(b.viewing_fee||0),Number(b.units_available||1),
        b.description||null,b.water||null,b.internet||null,b.security||null,!!b.parking,b.floor||null,
-       b.latitude?Number(b.latitude):null,b.longitude?Number(b.longitude):null]);
+       b.latitude?Number(b.latitude):null,b.longitude?Number(b.longitude):null,mode,
+       b.nightly_rate?Number(b.nightly_rate):null,b.weekly_rate?Number(b.weekly_rate):null,b.monthly_rate?Number(b.monthly_rate):null,
+       Number(b.cleaning_fee||0),Number(b.security_deposit||0),Number(b.minimum_nights||1),
+       b.maximum_guests?Number(b.maximum_guests):null,b.check_in_time||null,b.check_out_time||null,
+       !!b.furnished,!!b.self_check_in,!!b.kitchen,!!b.workspace,!!b.pool,!!b.gym]);
     res.status(201).json({message:"Property submitted. Add current photos/video, then send it for verification.",listing:r.rows[0]});
   }catch(e){next(e)}
 });
@@ -181,7 +203,7 @@ app.post("/api/listings/:id/reconfirm",auth,async(req,res,next)=>{
   }catch(e){next(e)}
 });
 
-app.get("/api/dashboard/listings",auth,roleAllowed("landlord","caretaker","manager","agent","admin"),async(req,res,next)=>{
+app.get("/api/dashboard/listings",auth,roleAllowed("landlord","caretaker","manager","agent","host","admin"),async(req,res,next)=>{
   try{
     const r = req.user.role==="admin"
       ? await q(`${listingSelect} ORDER BY l.created_at DESC`)
@@ -197,7 +219,7 @@ app.get("/api/admin/overview",auth,admin,async(req,res,next)=>{
       q(`SELECT
         COUNT(*)::int AS total_users,
         COUNT(*) FILTER(WHERE role='renter')::int AS renters,
-        COUNT(*) FILTER(WHERE role IN ('landlord','caretaker','manager','agent'))::int AS property_partners,
+        COUNT(*) FILTER(WHERE role IN ('landlord','caretaker','manager','agent','host'))::int AS property_partners,
         COUNT(*) FILTER(WHERE role='admin')::int AS admins,
         COUNT(*) FILTER(WHERE verified_identity=true)::int AS identity_verified
         FROM users`),
@@ -366,8 +388,16 @@ app.post("/api/assistant",async(req,res,next)=>{
     const text=String(req.body?.message||"").toLowerCase();
     const r=await q(`${listingSelect} WHERE l.status='verified' AND (l.availability_expires_at IS NULL OR l.availability_expires_at>NOW())`);
     let rows=r.rows;
+    const wantsShort=/short stay|airbnb|nightly|holiday home|serviced apartment/.test(text);
+    const wantsFurnishedMonthly=/furnished monthly|monthly furnished/.test(text);
+    if(wantsShort) rows=rows.filter(x=>x.listing_mode==="short_stay");
+    if(wantsFurnishedMonthly) rows=rows.filter(x=>x.listing_mode==="furnished_monthly");
+
     const budget=text.match(/(?:under|below|max|budget)\s*(?:ksh|kes)?\s*([0-9,.]+)\s*k?/i);
-    if(budget){let n=Number(budget[1].replace(/,/g,""));if(/\bk\b/i.test(budget[0])&&n<1000)n*=1000;rows=rows.filter(x=>x.rent<=n)}
+    if(budget){let n=Number(budget[1].replace(/,/g,""));if(/\bk\b/i.test(budget[0])&&n<1000)n*=1000;rows=rows.filter(x=>{
+      const price=x.listing_mode==="short_stay"?Number(x.nightly_rate||0):x.listing_mode==="furnished_monthly"?Number(x.monthly_rate||x.rent||0):Number(x.rent||0);
+      return price<=n;
+    })}
     const areas=[...new Set(rows.map(x=>x.area))]; const area=areas.find(a=>text.includes(a.toLowerCase())); if(area)rows=rows.filter(x=>x.area===area);
     if(/bedsitter/.test(text))rows=rows.filter(x=>/bedsitter/i.test(x.property_type));
     if(/1\s*bed|one bedroom|1br/.test(text))rows=rows.filter(x=>Number(x.bedrooms)===1);

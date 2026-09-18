@@ -1,6 +1,12 @@
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 let me=null, map=null;
 const money=n=>`KSh ${Number(n||0).toLocaleString()}`;
+const stayPrice=x=>x.listing_mode==="short_stay"
+  ? `${money(x.nightly_rate)} / night`
+  : x.listing_mode==="furnished_monthly"
+    ? `${money(x.monthly_rate||x.rent)} / month`
+    : `${money(x.rent)} / month`;
+const stayLabel=x=>x.listing_mode==="short_stay"?"Short stay":x.listing_mode==="furnished_monthly"?"Furnished monthly":"Long-term";
 const api=async(url,opt={})=>{const r=await fetch(url,{credentials:"same-origin",...opt,headers:{"Content-Type":"application/json",...(opt.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.error||"Request failed");return d};
 function open(id){$("#"+id).classList.add("open")} function close(el){el.closest(".modal").classList.remove("open")}
 $$("[data-close]").forEach(b=>b.onclick=()=>close(b)); $$(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove("open")});
@@ -8,22 +14,32 @@ $$("[data-close]").forEach(b=>b.onclick=()=>close(b)); $$(".modal").forEach(m=>m
 async function getMe(){try{me=(await api("/api/me")).user}catch{me=null} $("#authBtn").textContent=me?me.name.split(" ")[0]:"Sign in";return me}
 async function stats(){const s=await api("/api/stats");$("#s1").textContent=s.verified;$("#s2").textContent=s.live_units;$("#s3").textContent=`${s.avg_score}/100`}
 async function load(){
- const p=new URLSearchParams();if($("#q").value)p.set("q",$("#q").value);if($("#budget").value)p.set("maxRent",$("#budget").value);if($("#ptype").value)p.set("type",$("#ptype").value);if($("#freeView").checked)p.set("noViewingFee","true");
+ const p=new URLSearchParams();if($("#q").value)p.set("q",$("#q").value);if($("#budget").value)p.set("maxRent",$("#budget").value);if($("#ptype").value)p.set("type",$("#ptype").value);if($("#modeFilter")?.value)p.set("mode",$("#modeFilter").value);if($("#freeView").checked)p.set("noViewingFee","true");
  const rows=await api("/api/listings?"+p);render(rows)
 }
 function render(rows){
  $("#count").textContent=`${rows.length} verified match${rows.length===1?"":"es"}`;
- $("#grid").innerHTML=rows.length?rows.map(x=>`<article class="card" data-id="${x.id}"><div class="photo">${x.cover_media_id?`<img src="/api/media/${x.cover_media_id}" alt="${x.title}">`:`<div class="noimg">Verified media coming soon</div>`}<span class="score">${x.verification_score||"—"} / 100</span></div><div class="body"><div class="bodyTop"><h3>${x.title}</h3><span class="price">${money(x.rent)}</span></div><div class="meta">✓ Verified • ${x.area} • ${x.units_available} vacant</div><div class="badges"><span class="badge">${x.viewing_fee===0?"No viewing fee":"Viewing "+money(x.viewing_fee)}</span>${x.internet?`<span class="badge">${x.internet}</span>`:""}${x.parking?`<span class="badge">Parking</span>`:""}</div><div class="cost"><span>Move-in from <b>${money(Number(x.rent)+Number(x.deposit)+Number(x.service_charge))}</b></span><span>${x.media_count} media</span></div></div></article>`).join(""):`<div class="empty">No current verified homes match those filters.</div>`;
+ $("#grid").innerHTML=rows.length?rows.map(x=>`<article class="card" data-id="${x.id}"><div class="photo">${x.cover_media_id?`<img src="/api/media/${x.cover_media_id}" alt="${x.title}">`:`<div class="noimg">Verified media coming soon</div>`}<span class="score">${x.verification_score||"—"} / 100</span></div><div class="body"><div class="bodyTop"><h3>${x.title}</h3><span class="price">${stayPrice(x)}</span></div><div class="meta">✓ Verified • ${stayLabel(x)} • ${x.area} • ${x.units_available} available</div><div class="badges"><span class="badge">${x.viewing_fee===0?"No viewing fee":"Viewing "+money(x.viewing_fee)}</span>${x.internet?`<span class="badge">${x.internet}</span>`:""}${x.parking?`<span class="badge">Parking</span>`:""}</div><div class="cost"><span>${x.listing_mode==="short_stay"
+  ? `From <b>${money(x.nightly_rate)}</b> / night${Number(x.cleaning_fee)>0?` + ${money(x.cleaning_fee)} cleaning`:""}`
+  : `Move-in from <b>${money(Number(x.rent)+Number(x.deposit)+Number(x.service_charge))}</b>`}</span><span>${x.media_count} media</span></div></div></article>`).join(""):`<div class="empty">No current verified homes match those filters.</div>`;
  $$(".card").forEach(c=>c.onclick=()=>detail(c.dataset.id))
 }
 window.detail=async function detail(id){
  const x=await api("/api/listings/"+id);const first=x.media?.[0];const media=first?(first.media_type==="video"?`<video controls src="/api/media/${first.id}"></video>`:`<img src="/api/media/${first.id}" alt="">`):`<div class="noimg">No media uploaded yet</div>`;
- $("#detail").innerHTML=`<div class="detailHero"><div class="gallery">${media}</div><div><span class="kicker">Verified listing</span><div class="detailScore">${x.verification_score||"—"}</div><small>KEJASURE SCORE</small><h2>${x.title}</h2><p>${x.description||""}</p><h3>${money(x.rent)} / month</h3></div></div><div class="info"><div><span>Availability</span><b>${x.units_available} unit(s) vacant</b></div><div><span>Viewing fee</span><b>${money(x.viewing_fee)}</b></div><div><span>Deposit</span><b>${money(x.deposit)}</b></div><div><span>Service charge</span><b>${money(x.service_charge)}</b></div><div><span>Water</span><b>${x.water||"Not stated"}</b></div><div><span>Internet</span><b>${x.internet||"Not stated"}</b></div><div><span>Security</span><b>${x.security||"Not stated"}</b></div><div><span>Lister</span><b>${x.lister_name} • ${x.lister_role}${x.lister_identity_verified?" ✓":""}</b></div></div><div class="actions"><button onclick="saveHome(${x.id})">Save</button>${x.latitude&&x.longitude?`<button onclick="showMap(${x.latitude},${x.longitude},'${x.title.replaceAll("'","")}')">Map</button>`:""}<button class="go" onclick="bookHome(${x.id})">Book verified viewing</button></div>`;open("detailModal")
+ $("#detail").innerHTML=`<div class="detailHero"><div class="gallery">${media}</div><div><span class="kicker">Verified listing</span><div class="detailScore">${x.verification_score||"—"}</div><small>KEJASURE SCORE</small><h2>${x.title}</h2><p>${x.description||""}</p><h3>${stayPrice(x)}</h3></div></div><div class="info"><div><span>Availability</span><b>${x.units_available} unit(s) vacant</b></div><div><span>Viewing fee</span><b>${money(x.viewing_fee)}</b></div><div><span>Deposit</span><b>${money(x.deposit)}</b></div><div><span>Service charge</span><b>${money(x.service_charge)}</b></div><div><span>Water</span><b>${x.water||"Not stated"}</b></div><div><span>Internet</span><b>${x.internet||"Not stated"}</b></div><div><span>Security</span><b>${x.security||"Not stated"}</b></div><div><span>Lister</span><b>${x.lister_name} • ${x.lister_role}${x.lister_identity_verified?" ✓":""}</b></div>${x.listing_mode==="short_stay"?`
+      <div><span>Weekly rate</span><b>${x.weekly_rate?money(x.weekly_rate):"Not stated"}</b></div>
+      <div><span>Cleaning fee</span><b>${money(x.cleaning_fee)}</b></div>
+      <div><span>Minimum stay</span><b>${x.minimum_nights||1} night(s)</b></div>
+      <div><span>Maximum guests</span><b>${x.maximum_guests||"Not stated"}</b></div>
+      <div><span>Check-in</span><b>${x.check_in_time||"Not stated"}</b></div>
+      <div><span>Check-out</span><b>${x.check_out_time||"Not stated"}</b></div>
+      <div><span>Self check-in</span><b>${x.self_check_in?"Yes":"No"}</b></div>
+      <div><span>Amenities</span><b>${[x.kitchen&&"Kitchen",x.workspace&&"Workspace",x.pool&&"Pool",x.gym&&"Gym"].filter(Boolean).join(" • ")||"Not stated"}</b></div>`:""}</div><div class="actions"><button onclick="saveHome(${x.id})">Save</button>${x.latitude&&x.longitude?`<button onclick="showMap(${x.latitude},${x.longitude},'${x.title.replaceAll("'","")}')">Map</button>`:""}<button class="go" onclick="bookHome(${x.id})">Book verified viewing</button></div>`;open("detailModal")
 }
 window.saveHome=async id=>{if(!me){open("authModal");return}try{await api(`/api/listings/${id}/save`,{method:"POST"});alert("Saved to your KejaSure account.")}catch(e){alert(e.message)}}
 window.bookHome=async id=>{if(!me){open("authModal");return}if(me.role!=="renter"){alert("Viewing bookings are for house-seeker accounts.");return}const when=prompt("Enter viewing date/time, e.g. 2026-09-20T14:00");if(!when)return;try{const r=await api(`/api/listings/${id}/bookings`,{method:"POST",body:JSON.stringify({scheduled_for:when})});alert(`${r.message}\nSafety code: ${r.booking.safety_code}`)}catch(e){alert(e.message)}}
 window.showMap=(lat,lng,title)=>{open("mapModal");setTimeout(()=>{if(map)map.remove();map=L.map("map").setView([lat,lng],15);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(map);L.marker([lat,lng]).addTo(map).bindPopup(title).openPopup()},100)}
-$("#searchBtn").onclick=load;$("#budget").onchange=load;$("#ptype").onchange=load;$("#freeView").onchange=load;$("#q").onkeydown=e=>{if(e.key==="Enter")load()};
+$("#searchBtn").onclick=load;$("#budget").onchange=load;$("#ptype").onchange=load;if($("#modeFilter"))$("#modeFilter").onchange=load;$("#freeView").onchange=load;$("#q").onkeydown=e=>{if(e.key==="Enter")load()};
 $("#askBtn").onclick=async()=>{const t=$("#ask").value.trim();if(!t)return;$("#askBtn").textContent="Searching…";try{const r=await api("/api/assistant",{method:"POST",body:JSON.stringify({message:t})});render(r.matches);$("#homes").scrollIntoView({behavior:"smooth"})}catch(e){alert(e.message)}finally{$("#askBtn").textContent="Find it"}};
 $("#authBtn").onclick=()=>me?dashboard():open("authModal");$("#dashboardBtn").onclick=dashboard;
 $$(".tab").forEach(t=>t.onclick=()=>{$$(".tab").forEach(x=>x.classList.remove("active"));t.classList.add("active");$("#loginForm").hidden=t.dataset.tab!=="login";$("#registerForm").hidden=t.dataset.tab!=="register"});
@@ -33,7 +49,7 @@ $("#registerForm").onsubmit=async e=>{e.preventDefault();const f=Object.fromEntr
 async function dashboard(){
  if(!me){open("authModal");return}
  open("dashboardModal");let html=`<div class="dashHead"><div><span class="kicker">${me.role}</span><h2>${me.name}</h2></div><button class="quiet" id="logout">Sign out</button></div>`;
- if(["landlord","caretaker","manager","agent"].includes(me.role)){const rows=await api("/api/dashboard/listings");html+=`<h3 style="margin-top:25px">Your properties</h3><button class="primary" id="newListing">+ Add property</button><div class="dashList">${rows.map(x=>`<div class="dashItem"><h3>${x.title}</h3><span class="status ${x.status}">${x.status}</span><p>${x.area} • ${money(x.rent)} • ${x.units_available} vacant • ${x.media_count} media</p><div class="actions"><button onclick="reconfirm(${x.id},${x.units_available})">Reconfirm availability</button><label class="uploadBox">Add photo/video<input type="file" hidden onchange="uploadMedia(event,${x.id})"></label></div></div>`).join("")||"<p>No property submitted yet.</p>"}</div><div id="newBox"></div>`}
+ if(["landlord","caretaker","manager","agent","host"].includes(me.role)){const rows=await api("/api/dashboard/listings");html+=`<h3 style="margin-top:25px">Your properties</h3><button class="primary" id="newListing">+ Add property</button><div class="dashList">${rows.map(x=>`<div class="dashItem"><h3>${x.title}</h3><span class="status ${x.status}">${x.status}</span><p>${x.area} • ${money(x.rent)} • ${x.units_available} vacant • ${x.media_count} media</p><div class="actions"><button onclick="reconfirm(${x.id},${x.units_available})">Reconfirm availability</button><label class="uploadBox">Add photo/video<input type="file" hidden onchange="uploadMedia(event,${x.id})"></label></div></div>`).join("")||"<p>No property submitted yet.</p>"}</div><div id="newBox"></div>`}
  else if(me.role==="admin"){
    const [overview,rows,users,bookings]=await Promise.all([
      api("/api/admin/overview"),
@@ -73,7 +89,7 @@ async function dashboard(){
    <div id="adminListings" class="adminPanel" hidden>
      <div class="panelHead"><div><span class="kicker">Inventory</span><h3>All property records</h3></div></div>
      <div class="adminTableWrap"><table class="adminTable"><thead><tr><th>Property</th><th>Lister</th><th>Status</th><th>Rent</th><th>Vacant</th><th>Score</th><th>Media</th><th>Actions</th></tr></thead><tbody>
-     ${rows.map(x=>`<tr><td><b>${x.title}</b><small>${x.area}</small></td><td>${x.lister_name}<small>${x.lister_role}${x.lister_identity_verified?" • ID ✓":""}</small></td><td><span class="status ${x.status}">${x.status}</span></td><td>${money(x.rent)}</td><td>${x.units_available}</td><td>${x.verification_score||"—"}</td><td>${x.media_count}</td><td><div class="tableActions"><button onclick="detail(${x.id})">View</button><button onclick="adminScore(${x.id},${x.verification_score||85})">Score</button>${x.status==="verified"?`<button onclick="adminPause(${x.id})">Pause</button>`:""}</div></td></tr>`).join("")}
+     ${rows.map(x=>`<tr><td><b>${x.title}</b><small>${stayLabel(x)} • ${x.area}</small></td><td>${x.lister_name}<small>${x.lister_role}${x.lister_identity_verified?" • ID ✓":""}</small></td><td><span class="status ${x.status}">${x.status}</span></td><td>${stayPrice(x)}</td><td>${x.units_available}</td><td>${x.verification_score||"—"}</td><td>${x.media_count}</td><td><div class="tableActions"><button onclick="detail(${x.id})">View</button><button onclick="adminScore(${x.id},${x.verification_score||85})">Score</button>${x.status==="verified"?`<button onclick="adminPause(${x.id})">Pause</button>`:""}</div></td></tr>`).join("")}
      </tbody></table></div>
    </div>
 
@@ -114,14 +130,90 @@ async function dashboard(){
    };
  }
 }
-function showNewListing(){ $("#newBox").innerHTML=`<h3 style="margin-top:28px">Submit property</h3><form id="newForm"><div class="formGrid"><label>Title<input name="title" required placeholder="1 Bedroom • Ruiru"></label><label>Area<input name="area" required></label><label>County<input name="county" value="Nairobi"></label><label>Type<select name="property_type"><option>Bedsitter</option><option>1 Bedroom</option><option>2 Bedroom</option><option>3 Bedroom</option></select></label><label>Bedrooms<input name="bedrooms" type="number" value="1"></label><label>Bathrooms<input name="bathrooms" type="number" value="1"></label><label>Rent<input name="rent" type="number" required></label><label>Deposit<input name="deposit" type="number"></label><label>Service charge<input name="service_charge" type="number" value="0"></label><label>Viewing fee<input name="viewing_fee" type="number" value="0"></label><label>Vacant units<input name="units_available" type="number" value="1"></label><label>Water<input name="water"></label><label>Internet<input name="internet"></label><label>Security<input name="security"></label><label>Latitude<input name="latitude" type="number" step="any"></label><label>Longitude<input name="longitude" type="number" step="any"></label></div><label>Description<textarea name="description" rows="4"></textarea></label><label><input name="parking" type="checkbox"> Parking available</label><button class="primary">Submit for verification</button></form>`;$("#newForm").onsubmit=async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));f.parking=e.target.parking.checked;try{await api("/api/listings",{method:"POST",body:JSON.stringify(f)});alert("Property submitted. Upload current media from the dashboard.");dashboard()}catch(x){alert(x.message)}}}
+function showNewListing(){
+ $("#newBox").innerHTML=`<h3 style="margin-top:28px">Submit property</h3>
+ <form id="newForm">
+   <div class="listingModeBox">
+     <label>Listing category
+       <select name="listing_mode" id="listingMode">
+         <option value="long_term">Long-term rental</option>
+         <option value="short_stay">Short stay / holiday rental</option>
+         <option value="furnished_monthly">Furnished monthly stay</option>
+       </select>
+     </label>
+     <p id="modeHint">For tenants looking for a normal monthly rental.</p>
+   </div>
+   <div class="formGrid">
+     <label>Title<input name="title" required placeholder="1 Bedroom • Ruiru"></label>
+     <label>Area<input name="area" required></label>
+     <label>County<input name="county" value="Nairobi"></label>
+     <label>Type<select name="property_type"><option>Bedsitter</option><option>Studio</option><option>1 Bedroom</option><option>2 Bedroom</option><option>3 Bedroom</option><option>Maisonette</option><option>Holiday Home</option><option>Serviced Apartment</option></select></label>
+     <label>Bedrooms<input name="bedrooms" type="number" value="1"></label>
+     <label>Bathrooms<input name="bathrooms" type="number" value="1"></label>
+     <label class="monthlyField">Monthly rent<input name="rent" type="number"></label>
+     <label class="shortField" hidden>Nightly rate<input name="nightly_rate" type="number"></label>
+     <label class="shortField" hidden>Weekly rate<input name="weekly_rate" type="number"></label>
+     <label class="shortField" hidden>Monthly short-stay rate<input name="monthly_rate" type="number"></label>
+     <label class="shortField" hidden>Cleaning fee<input name="cleaning_fee" type="number" value="0"></label>
+     <label class="shortField" hidden>Security deposit<input name="security_deposit" type="number" value="0"></label>
+     <label class="shortField" hidden>Minimum nights<input name="minimum_nights" type="number" value="1"></label>
+     <label class="shortField" hidden>Maximum guests<input name="maximum_guests" type="number"></label>
+     <label class="shortField" hidden>Check-in time<input name="check_in_time" type="time"></label>
+     <label class="shortField" hidden>Check-out time<input name="check_out_time" type="time"></label>
+     <label>Long-term deposit<input name="deposit" type="number"></label>
+     <label>Service charge<input name="service_charge" type="number" value="0"></label>
+     <label>Viewing fee<input name="viewing_fee" type="number" value="0"></label>
+     <label>Available units<input name="units_available" type="number" value="1"></label>
+     <label>Water<input name="water"></label>
+     <label>Internet / Wi-Fi<input name="internet"></label>
+     <label>Security<input name="security"></label>
+     <label>Latitude<input name="latitude" type="number" step="any"></label>
+     <label>Longitude<input name="longitude" type="number" step="any"></label>
+   </div>
+   <div class="amenityChecks">
+     <label><input name="parking" type="checkbox"> Parking</label>
+     <label><input name="furnished" type="checkbox"> Furnished</label>
+     <label class="shortAmenity" hidden><input name="self_check_in" type="checkbox"> Self check-in</label>
+     <label class="shortAmenity" hidden><input name="kitchen" type="checkbox"> Kitchen</label>
+     <label class="shortAmenity" hidden><input name="workspace" type="checkbox"> Workspace</label>
+     <label class="shortAmenity" hidden><input name="pool" type="checkbox"> Pool</label>
+     <label class="shortAmenity" hidden><input name="gym" type="checkbox"> Gym</label>
+   </div>
+   <label>Description<textarea name="description" rows="4" placeholder="Current condition, access, rules, utilities and what makes the property suitable…"></textarea></label>
+   <button class="primary">Submit for verification</button>
+ </form>`;
+ const form=$("#newForm"), mode=$("#listingMode"), hint=$("#modeHint");
+ const syncMode=()=>{
+   const short=mode.value==="short_stay", furnishedMonthly=mode.value==="furnished_monthly";
+   $$(".shortField").forEach(x=>x.hidden=!short);
+   $$(".shortAmenity").forEach(x=>x.hidden=!short);
+   $$(".monthlyField").forEach(x=>x.hidden=short);
+   hint.textContent=short
+     ?"For nightly/weekly stays. Add current rates, check-in details and guest amenities."
+     : furnishedMonthly
+       ?"For furnished homes rented mainly by the month."
+       :"For tenants looking for a normal monthly rental.";
+   if(furnishedMonthly) form.furnished.checked=true;
+ };
+ mode.onchange=syncMode;syncMode();
+ form.onsubmit=async e=>{
+   e.preventDefault();
+   const f=Object.fromEntries(new FormData(e.target));
+   ["parking","furnished","self_check_in","kitchen","workspace","pool","gym"].forEach(k=>f[k]=!!e.target[k]?.checked);
+   try{
+     await api("/api/listings",{method:"POST",body:JSON.stringify(f)});
+     alert("Property submitted. Upload current photos/video from the dashboard, then it can be verified.");
+     dashboard()
+   }catch(x){alert(x.message)}
+ };
+}
 window.uploadMedia=async(e,id)=>{const file=e.target.files[0];if(!file)return;const fd=new FormData();fd.append("file",file);try{const r=await fetch(`/api/listings/${id}/media`,{method:"POST",body:fd,credentials:"same-origin"});const d=await r.json();if(!r.ok)throw new Error(d.error);alert("Media uploaded and attached to the property.");dashboard()}catch(x){alert(x.message)}}
 window.reconfirm=async(id,current)=>{const n=prompt("How many units are currently vacant?",current);if(n===null)return;try{await api(`/api/listings/${id}/reconfirm`,{method:"POST",body:JSON.stringify({units_available:Number(n)})});alert("Availability confirmed for 7 days.");dashboard()}catch(x){alert(x.message)}}
 
 function adminListingCard(x){
   const expiry=x.availability_expires_at?new Date(x.availability_expires_at).toLocaleString():"Not confirmed";
   return `<article class="adminProperty">
-    <div class="adminPropertyTop"><div><span class="status ${x.status}">${x.status}</span><h3>${x.title}</h3><p>${x.area} • ${money(x.rent)} / month</p></div><div class="adminScore">${x.verification_score||"—"}<small>score</small></div></div>
+    <div class="adminPropertyTop"><div><span class="status ${x.status}">${x.status}</span><h3>${x.title}</h3><p>${stayLabel(x)} • ${x.area} • ${stayPrice(x)}</p></div><div class="adminScore">${x.verification_score||"—"}<small>score</small></div></div>
     <div class="adminMeta">
       <span><b>${x.lister_name}</b><small>${x.lister_role}${x.lister_identity_verified?" • Identity ✓":" • Identity pending"}</small></span>
       <span><b>${x.units_available}</b><small>vacant units</small></span>

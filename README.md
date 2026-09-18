@@ -70,3 +70,32 @@ The system is a strong functional MVP, not the final legal/security architecture
 - legal review before any escrow/deposit handling
 
 No payment or escrow flow is enabled in this package.
+
+
+## Short-stay hosts
+
+KejaSure also supports short-stay and furnished-monthly inventory.
+
+New listing modes:
+- Long-term rental
+- Short stay / holiday rental
+- Furnished monthly stay
+
+Short-stay listings can include:
+- nightly, weekly and monthly rates
+- cleaning fee
+- security deposit
+- minimum nights
+- maximum guests
+- check-in / check-out time
+- furnished status
+- self check-in
+- kitchen
+- workspace
+- pool
+- gym
+- current photos/video
+- map location
+- live availability reconfirmation
+
+A new `host` user role is available. The database migration is included in `sql/schema.sql` and runs automatically at the next Render deployment.
