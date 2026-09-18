@@ -190,6 +190,104 @@ app.get("/api/dashboard/listings",auth,roleAllowed("landlord","caretaker","manag
   }catch(e){next(e)}
 });
 
+
+app.get("/api/admin/overview",auth,admin,async(req,res,next)=>{
+  try{
+    const [users,listings,bookings,recentUsers,recentListings] = await Promise.all([
+      q(`SELECT
+        COUNT(*)::int AS total_users,
+        COUNT(*) FILTER(WHERE role='renter')::int AS renters,
+        COUNT(*) FILTER(WHERE role IN ('landlord','caretaker','manager','agent'))::int AS property_partners,
+        COUNT(*) FILTER(WHERE role='admin')::int AS admins,
+        COUNT(*) FILTER(WHERE verified_identity=true)::int AS identity_verified
+        FROM users`),
+      q(`SELECT
+        COUNT(*)::int AS total_properties,
+        COUNT(*) FILTER(WHERE status='pending')::int AS pending,
+        COUNT(*) FILTER(WHERE status='verified')::int AS verified,
+        COUNT(*) FILTER(WHERE status='rejected')::int AS rejected,
+        COUNT(*) FILTER(WHERE status='paused')::int AS paused,
+        COUNT(*) FILTER(WHERE status='occupied')::int AS occupied,
+        COALESCE(SUM(units_available) FILTER(WHERE status='verified'),0)::int AS live_units,
+        COUNT(*) FILTER(WHERE status='verified' AND availability_expires_at IS NOT NULL AND availability_expires_at <= NOW()+INTERVAL '48 hours')::int AS expiring_soon
+        FROM listings`),
+      q(`SELECT
+        COUNT(*)::int AS total_bookings,
+        COUNT(*) FILTER(WHERE status='requested')::int AS requested,
+        COUNT(*) FILTER(WHERE status='confirmed')::int AS confirmed,
+        COUNT(*) FILTER(WHERE status='completed')::int AS completed,
+        COUNT(*) FILTER(WHERE status='cancelled')::int AS cancelled
+        FROM bookings`),
+      q(`SELECT id,name,email,phone,role,verified_identity,created_at
+         FROM users ORDER BY created_at DESC LIMIT 8`),
+      q(`${listingSelect} ORDER BY l.created_at DESC LIMIT 8`)
+    ]);
+    res.json({
+      users: users.rows[0],
+      listings: listings.rows[0],
+      bookings: bookings.rows[0],
+      recent_users: recentUsers.rows,
+      recent_listings: recentListings.rows
+    });
+  }catch(e){next(e)}
+});
+
+app.get("/api/admin/users",auth,admin,async(req,res,next)=>{
+  try{
+    const role = String(req.query.role||"").trim();
+    const search = String(req.query.q||"").trim().toLowerCase();
+    const params=[]; const where=[];
+    if(role){params.push(role);where.push(`role=$${params.length}`)}
+    if(search){params.push(`%${search}%`);where.push(`(LOWER(name) LIKE $${params.length} OR LOWER(email) LIKE $${params.length} OR LOWER(COALESCE(phone,'')) LIKE $${params.length})`)}
+    const sql=`SELECT id,name,email,phone,role,verified_identity,created_at
+               FROM users ${where.length?'WHERE '+where.join(' AND '):''}
+               ORDER BY created_at DESC LIMIT 200`;
+    const r=await q(sql,params);
+    res.json(r.rows);
+  }catch(e){next(e)}
+});
+
+app.get("/api/admin/bookings",auth,admin,async(req,res,next)=>{
+  try{
+    const r=await q(`SELECT b.*,l.title,l.area,l.rent,
+      u.name AS renter_name,u.email AS renter_email,u.phone AS renter_phone,
+      owner.name AS lister_name,owner.role AS lister_role
+      FROM bookings b
+      JOIN listings l ON l.id=b.listing_id
+      JOIN users u ON u.id=b.renter_id
+      JOIN users owner ON owner.id=l.owner_id
+      ORDER BY b.created_at DESC LIMIT 200`);
+    res.json(r.rows);
+  }catch(e){next(e)}
+});
+
+app.post("/api/admin/listings/:id/pause",auth,admin,async(req,res,next)=>{
+  try{
+    const r=await q(`UPDATE listings SET status='paused',updated_at=NOW()
+      WHERE id=$1 RETURNING *`,[req.params.id]);
+    if(!r.rowCount) return res.status(404).json({error:"Listing not found"});
+    res.json({message:"Listing paused.",listing:r.rows[0]});
+  }catch(e){next(e)}
+});
+
+app.post("/api/admin/listings/:id/score",auth,admin,async(req,res,next)=>{
+  try{
+    const score=Math.min(100,Math.max(1,Number(req.body?.score||85)));
+    const r=await q(`UPDATE listings SET verification_score=$1,updated_at=NOW()
+      WHERE id=$2 RETURNING *`,[score,req.params.id]);
+    if(!r.rowCount) return res.status(404).json({error:"Listing not found"});
+    res.json({message:"KejaSure Score updated.",listing:r.rows[0]});
+  }catch(e){next(e)}
+});
+
+app.post("/api/admin/users/:id/unverify-identity",auth,admin,async(req,res,next)=>{
+  try{
+    const r=await q("UPDATE users SET verified_identity=false WHERE id=$1 RETURNING id,name,email,role,verified_identity",[req.params.id]);
+    if(!r.rowCount) return res.status(404).json({error:"User not found"});
+    res.json({user:r.rows[0]});
+  }catch(e){next(e)}
+});
+
 app.post("/api/admin/listings/:id/verify",auth,admin,async(req,res,next)=>{
   try{
     const score=Math.min(100,Math.max(1,Number(req.body?.score||85)));
