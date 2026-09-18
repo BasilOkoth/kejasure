@@ -6,7 +6,7 @@ const stayPrice=x=>x.listing_mode==="short_stay"
   : x.listing_mode==="furnished_monthly"
     ? `${money(x.monthly_rate||x.rent)} / month`
     : `${money(x.rent)} / month`;
-const stayLabel=x=>x.listing_mode==="short_stay"?"Short stay":x.listing_mode==="furnished_monthly"?"Furnished monthly":"Long-term";
+const stayLabel=x=>x.listing_mode==="short_stay"?"Airbnb / Short stay":x.listing_mode==="furnished_monthly"?"Furnished monthly":"Long-term";
 const api=async(url,opt={})=>{const r=await fetch(url,{credentials:"same-origin",...opt,headers:{"Content-Type":"application/json",...(opt.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.error||"Request failed");return d};
 function open(id){$("#"+id).classList.add("open")} function close(el){el.closest(".modal").classList.remove("open")}
 $$("[data-close]").forEach(b=>b.onclick=()=>close(b)); $$(".modal").forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove("open")});
@@ -141,7 +141,7 @@ function showNewListing(){
      <label>Listing category
        <select name="listing_mode" id="listingMode">
          <option value="long_term">Long-term rental</option>
-         <option value="short_stay">Short stay / holiday rental</option>
+         <option value="short_stay">Airbnb / Short stay</option>
          <option value="furnished_monthly">Furnished monthly stay</option>
        </select>
      </label>
@@ -193,7 +193,7 @@ function showNewListing(){
    $$(".shortAmenity").forEach(x=>x.hidden=!short);
    $$(".monthlyField").forEach(x=>x.hidden=short);
    hint.textContent=short
-     ?"For nightly/weekly stays. Add current rates, check-in details and guest amenities."
+     ?"For Airbnb-style nightly or weekly stays. Add current rates, check-in details and guest amenities."
      : furnishedMonthly
        ?"For furnished homes rented mainly by the month."
        :"For tenants looking for a normal monthly rental.";

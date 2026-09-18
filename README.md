@@ -78,7 +78,7 @@ KejaScan also supports short-stay and furnished-monthly inventory.
 
 New listing modes:
 - Long-term rental
-- Short stay / holiday rental
+- Airbnb-style short stay / holiday rental
 - Furnished monthly stay
 
 Short-stay listings can include:
